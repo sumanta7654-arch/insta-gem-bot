@@ -14,7 +14,11 @@ from app.core.config import (
 encoded_password = quote_plus(DB_PASSWORD)
 
 BASE_DIR = Path(__file__).resolve().parent
-CA_CERT_PATH = BASE_DIR / "certs" / "ca.pem"
+
+RENDER_CA_PATH = Path("/etc/secrets/ca.pem")
+LOCAL_CA_PATH = BASE_DIR / "certs" / "ca.pem"
+
+CA_CERT_PATH = RENDER_CA_PATH if RENDER_CA_PATH.exists() else LOCAL_CA_PATH
 
 DATABASE_URL = (
     f"mysql+pymysql://{DB_USER}:{encoded_password}"
