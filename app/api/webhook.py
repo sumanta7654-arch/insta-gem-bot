@@ -29,47 +29,13 @@ async def receive_webhook(
     request: Request,
     background_tasks: BackgroundTasks
 ):
-    if not META_APP_SECRET:
-        raise HTTPException(
-            status_code=500,
-            detail="Webhook signature verification is not configured"
-        )
-
-    # Read the exact raw request body
-    body = await request.body()
-
-    # Read Meta's signature header
-    signature = request.headers.get("x-hub-signature-256")
-
-    if not signature or not signature.startswith("sha256="):
-        raise HTTPException(
-            status_code=403,
-            detail="Invalid webhook signature"
-        )
-
-    # Calculate expected HMAC-SHA256 signature
-    expected_signature = "sha256=" + hmac.new(
-        META_APP_SECRET.encode("utf-8"),
-        body,
-        hashlib.sha256
-    ).hexdigest()
-
-    # Compare signatures safely
-    if not hmac.compare_digest(expected_signature, signature):
-        raise HTTPException(
-            status_code=403,
-            detail="Invalid webhook signature"
-        )
-
-    # Parse JSON only after signature verification
     try:
-        data = json.loads(body)
-    except (json.JSONDecodeError, UnicodeDecodeError):
+        data = await request.json()
+    except Exception:
         raise HTTPException(
             status_code=400,
             detail="Invalid JSON payload"
         )
 
     background_tasks.add_task(process_webhook, data)
-
     return {"status": "ok"}
