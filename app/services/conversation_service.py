@@ -2,10 +2,23 @@ from sqlalchemy.orm import Session
 
 from models import UserContext, Message
 
+from app.services.redis_service import (
+    get_recent_messages,
+    get_cached_user_summary,
+    cache_user_summary,
+    get_cached_conversation_summary,
+    cache_conversation_summary,
+)
+
 def get_user_summary(
     db: Session,
     user_id: int
 ) -> str:
+
+    cached_summary = get_cached_user_summary(user_id)
+
+    if cached_summary is not None:
+        return cached_summary
 
     user_context = (
         db.query(UserContext)
@@ -16,13 +29,26 @@ def get_user_summary(
     if not user_context:
         return ""
 
-    return user_context.summary
+    summary = user_context.summary
+
+    if summary:
+        cache_user_summary(
+            user_id=user_id,
+            summary=summary
+        )
+
+    return summary
 
 def get_conversation_summary(
     db: Session,
     user_id: int
 ) -> str:
 
+    cached_summary = get_cached_conversation_summary(user_id)
+
+    if cached_summary is not None:
+        return cached_summary
+
     user_context = (
         db.query(UserContext)
         .filter(UserContext.user_id == user_id)
@@ -32,7 +58,15 @@ def get_conversation_summary(
     if not user_context:
         return ""
 
-    return user_context.conversation_summary or ""
+    summary = user_context.conversation_summary or ""
+
+    if summary:
+        cache_conversation_summary(
+            user_id=user_id,
+            summary=summary
+        )
+
+    return summary
 
 def update_conversation_summary(
     db: Session,
@@ -56,6 +90,11 @@ def update_conversation_summary(
         user_context.conversation_summary = new_summary
 
     db.commit()
+
+    cache_conversation_summary(
+        user_id=user_id,
+        summary=new_summary
+    )
 
 def update_compression_checkpoint(
     db: Session,
@@ -177,11 +216,37 @@ def save_user_summary(
 
     db.commit()
 
+    cache_user_summary(
+        user_id=user_id,
+        summary=summary
+    )
+
 def get_conversation_context(
     db: Session,
     user_id: int,
     limit: int = 6
 ) -> str:
+
+    cached_messages = get_recent_messages(user_id)
+
+    if cached_messages is not None:
+        messages = cached_messages[-limit:]
+
+        context = []
+
+        for message in messages:
+            if message["role"] == "user":
+                context.append(
+                    f'[{message["created_at"]}] User: {message["content"]}'
+                )
+            else:
+                context.append(
+                    f'[{message["created_at"]}] Assistant: {message["content"]}'
+                )
+
+        return "\n".join(context)
+
+    # Redis cache miss → MySQL fallback
 
     messages = (
         db.query(Message)
