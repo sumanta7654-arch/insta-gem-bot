@@ -16,10 +16,9 @@ frontend_origins = [
     "http://127.0.0.1:5173",
 ]
 
-production_frontend_url = os.getenv("FRONTEND_URL")
-
-if production_frontend_url:
-    frontend_origins.append(production_frontend_url.rstrip("/"))
+frontend_url = os.getenv("FRONTEND_URL")
+if frontend_url:
+    frontend_origins.append(frontend_url.rstrip("/"))
 
 app.add_middleware(
     CORSMiddleware,
